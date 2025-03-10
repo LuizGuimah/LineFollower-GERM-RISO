@@ -6,6 +6,8 @@ This project was developed by a group of electrical engineering and computer sci
 
 The line-following robot is designed to detect and follow tracks with high precision. It uses reflectance sensors to monitor the line and dynamically adjust its position, ensuring efficient and fast movement.
 
+![Robot photo](media/photo_2.jpg)
+
 🛠️ Hardware Used
 
 | Component          | Description                                    |
@@ -17,6 +19,7 @@ The line-following robot is designed to detect and follow tracks with high preci
 | **Motors**        | Pololu N20 10,000 RPM motors with 1:10 gearbox |
 | **Encoders**      | Pololu encoders                               |
 | **Voltage Booster** | XL6009 Boost Step Up                        |
+
 
 📜 Software and Control
 
