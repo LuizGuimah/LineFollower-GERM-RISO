@@ -1,16 +1,45 @@
-# Line Follower - RISO/GERM/UDESC
+# HERMES Line Follower - RISO/GERM/UDESC
 
-This project is developed by a group of electrical engineering and computer science students. 
+This project was developed by a group of electrical engineering and computer science students with the goal of creating a high-performance line-following robot using PID control.
 
-## Hardware
-The hardware is composed by an esp32-WROOM, a Pololu QTR-8RC sensor, two QTR-2 sensors, a TB6612FN motor driver and a pair of 10,000 rpm n20 motor with a 1:10 ratio gearbox.
+🚀 Overview
 
-## Software
-The software is based on PID control logic, using discrete-time sampling to generate real-time corrections to keep the robot aligned and complete a white track on a black surface in the shortest possible time.
+The line-following robot is designed to detect and follow tracks with high precision. It uses reflectance sensors to monitor the line and dynamically adjust its position, ensuring efficient and fast movement.
 
-### Inputs
-The software inputs consist of an array of 6 or 8 reading from the frontal QTR-8RC reflectance sensors, each reading has a range of 0-4095 (0 meaning a white surface and 4095 meaning no reflectance at all).
-Two lateral QTR-2 reflectance sensors are responsible for four digital inputs in which 1 stand for "On Line" and 0 "Not On Line"
+🛠️ Hardware Used
 
-## Outputs
-The outputs of the current software are two PWM signal sent directly to the Motor Driver
+| Component          | Description                                    |
+|--------------------|----------------------------------------------|
+| **Microcontroller** | ESP32-WROOM                                  |
+| **Line Sensors**   | Pololu QTR-8RC sensor array                  |
+| **Lateral Sensors** | Two TCRT5000 sensors                        |
+| **Motor Driver**   | TB6612FN                            |
+| **Motors**        | Pololu N20 10,000 RPM motors with 1:10 gearbox |
+| **Encoders**      | Pololu encoders                               |
+| **Voltage Booster** | XL6009 Boost Step Up                        |
+
+📜 Software and Control
+
+The robot's control is based on a PID (Proportional, Integral, and Derivative) algorithm, which adjusts the motor speed according to the data provided by the line sensors. PID ensures the robot remains stable on the track, correcting its position in real-time.
+
+🎯 Inputs
+
+Line Sensors (QTR-8RC): Return values between 0 and 4095, where 0 indicates a white surface and 4095 indicates no reflectance.
+
+Lateral Sensors (TCRT5000): Provide four digital inputs: 0 indicates "On Line," and 1 indicates "Off Line."
+
+Encoders: Allow speed measurement of the motors and provide feedback for dynamic PID adjustments.
+
+⚡ Outputs
+
+PWM to Motors: Speed control is achieved through PWM signals sent to the TB6612FN H-Bridge, allowing fine adjustments of speed and direction.
+
+🔧 PID Tuning
+
+Tuning the PID parameters (Kp: Proportional, Ki: Integral, Kd: Derivative) is essential for the robot's performance. Here are some guidelines:
+
+Adjust Kp: Increase until the robot oscillates around the line.
+
+Adjust Kd: Add a value to reduce oscillations.
+
+Adjust Ki: Small values can help correct systematic deviations.
