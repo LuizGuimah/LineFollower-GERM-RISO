@@ -39,7 +39,7 @@ Encoders: Allow speed measurement of the motors and provide feedback for dynamic
 
 PWM to Motors: Speed control is achieved through PWM signals sent to the TB6612FN H-Bridge, allowing fine adjustments of speed and direction.
 
-# PID Tuning
+## PID Tuning
 
 Tuning the PID parameters (Kp: Proportional, Ki: Integral, Kd: Derivative) is essential for the robot's performance. Here are some guidelines:
 
