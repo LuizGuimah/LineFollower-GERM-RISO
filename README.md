@@ -21,7 +21,7 @@ The line-following robot is designed to detect and follow tracks with high preci
 | **Voltage Booster** | XL6009 Boost Step Up                        |
 
 
-## Esp32 used pinout
+## Esp32 Used Pinout
 
 ![esp32 photo](media/esp32_full_pinout.png)
 
