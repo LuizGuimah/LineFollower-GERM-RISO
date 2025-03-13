@@ -2,13 +2,13 @@
 
 This project was developed by a group of electrical engineering and computer science students with the goal of creating a high-performance line-following robot using PID control.
 
-🚀 Overview
+## Overview
 
 The line-following robot is designed to detect and follow tracks with high precision. It uses reflectance sensors to monitor the line and dynamically adjust its position, ensuring efficient and fast movement.
 
 ![Robot photo](media/photo_2.jpg)
 
-🛠️ Hardware Used
+## Hardware Used
 
 | Component          | Description                                    |
 |--------------------|----------------------------------------------|
@@ -21,11 +21,15 @@ The line-following robot is designed to detect and follow tracks with high preci
 | **Voltage Booster** | XL6009 Boost Step Up                        |
 
 
-📜 Software and Control
+## Esp32 used pinout
+
+![esp32 photo](media/esp32_full_pinout.png)
+
+## Software and Control
 
 The robot's control is based on a PID (Proportional, Integral, and Derivative) algorithm, which adjusts the motor speed according to the data provided by the line sensors. PID ensures the robot remains stable on the track, correcting its position in real-time.
 
-🎯 Inputs
+## Inputs/Outputs
 
 Line Sensors (QTR-8RC): Return values between 0 and 4095, where 0 indicates a white surface and 4095 indicates no reflectance.
 
@@ -33,11 +37,9 @@ Lateral Sensors (TCRT5000): Provide four digital inputs: 0 indicates "On Line," 
 
 Encoders: Allow speed measurement of the motors and provide feedback for dynamic PID adjustments.
 
-⚡ Outputs
-
 PWM to Motors: Speed control is achieved through PWM signals sent to the TB6612FN H-Bridge, allowing fine adjustments of speed and direction.
 
-🔧 PID Tuning
+# PID Tuning
 
 Tuning the PID parameters (Kp: Proportional, Ki: Integral, Kd: Derivative) is essential for the robot's performance. Here are some guidelines:
 
@@ -46,3 +48,5 @@ Adjust Kp: Increase until the robot oscillates around the line.
 Adjust Kd: Add a value to reduce oscillations.
 
 Adjust Ki: Small values can help correct systematic deviations.
+
+
