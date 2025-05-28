@@ -26,15 +26,6 @@ O sistema é dividido em duas partes principais:
         *   Visualizar o estado atual do robô recebido do ESP32.
         *   Ver logs de comunicação e status.
 
-## Estrutura de Diretórios
-
-.
-├── controlePythonBLE/
-│ └── controlePythonBLE.py # Script Python da interface de controle
-└── hermesBLE/
-└── hermesBLE.ino # Código Arduino para o ESP32
-└── README.md # Este arquivo
-
 ## Funcionalidades
 
 ### Firmware ESP32 (`hermesBLE.ino`)
@@ -64,9 +55,9 @@ O sistema é dividido em duas partes principais:
 
 1.  **Hardware:**
     *   Microcontrolador ESP32.
-    *   Sensores de linha (ex: QTR-8A, CNY70 ou TCRT5000 em array).
-    *   Sensores laterais (se aplicável).
-    *   Driver de motor (ex: L298N, TB6612FNG).
+    *   Sensores de linha.
+    *   Sensores laterais.
+    *   Driver de motor.
     *   Motores DC com rodas.
     *   Fonte de alimentação adequada.
 2.  **Software (Arduino IDE):**
