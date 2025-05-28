@@ -104,13 +104,8 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
 void setup() {
   Serial.begin(115200);
   Serial.println("Iniciando Hermes_BLE...");
-<<<<<<< Updated upstream
-
-  // Configuração dos Pinos dos Sensores de Linha
-=======
   // state = 4; // Garante que o robô comece PARADO
 
->>>>>>> Stashed changes
   for(int i=0; i<n_sensores; i++){
     pinMode(sensor[i], INPUT);
   }
@@ -168,18 +163,6 @@ void setup() {
   old_state_for_notification = state; // Inicializa o estado antigo
 }
 
-<<<<<<< Updated upstream
-// === LOOP ===
-void loop() {
-  if (deviceConnected) {
-    // --- LÓGICA PRINCIPAL DO ROBÔ SEGuidor de LINHA ---
-    
-    // Leitura dos sensores laterais (1 se branco, 0 se preto)
-    // sensorLat[1] é o direito (39), sensorLat[0] é o esquerdo (13)
-    r_lat_read = analogRead(sensorLat[1]) <= 2000; 
-    l_lat_read = analogRead(sensorLat[0]) <= 1000;
-=======
->>>>>>> Stashed changes
 
 void loop() {
   unsigned long currentTime = millis(); // Para envio periódico
@@ -209,14 +192,6 @@ void loop() {
         if(r_lat_read){ 
           state++; 
         }
-<<<<<<< Updated upstream
-        break;
-      case 1:
-        calc_turn(); // Continua seguindo a linha
-        if (!r_lat_read) // Se o sensor lateral direito voltar a ler preto (passou a marcação inicial)
-          state++;
-        break;
-=======
         tratarPerdaLinha();
         break;
       
@@ -228,7 +203,6 @@ void loop() {
         tratarPerdaLinha();
         break;
       
->>>>>>> Stashed changes
       case 2:
         calc_turn(); // Continua seguindo a linha
         if (r_lat_read || l_lat_read){ 
@@ -251,14 +225,6 @@ void loop() {
             } 
           } 
         }
-<<<<<<< Updated upstream
-        break;
-      case 3: // Saindo da curva/marcação
-        calc_turn(); // Continua seguindo a linha
-        if (!r_lat_read) // Se o sensor lateral direito ler preto novamente (fim da marcação/curva)
-          state++;
-        break;
-=======
         tratarPerdaLinha();
         break;
 
@@ -270,50 +236,12 @@ void loop() {
         tratarPerdaLinha();
         break;
       
->>>>>>> Stashed changes
       case 4: // Estado de parada ou espera
         analogWrite(PWMA, 0);
         analogWrite(PWMB, 0);
         break;
     }
 
-<<<<<<< Updated upstream
-    // Lógica para "sair da curva" se todos os sensores perderem a linha (lerem branco)
-    // (Todos os sensores frontais leem branco)
-    bool all_white = true;
-    for(int i=0; i<n_sensores; i++){
-        if(analogRead(sensor[i]) < 2000){ // Se algum sensor ler preto (valor baixo)
-            all_white = false;
-            break;
-        }
-    }
-
-    if(all_white){
-      unsigned long start_time_lost = millis();
-      // Tenta virar para um lado para reencontrar a linha.
-      // Aqui, está virando o motor B para frente e o A parado, o que faria o robô virar para a ESQUERDA.
-      // Ajuste conforme a necessidade (ex: virar para o último lado que viu a linha).
-      // Seu código original usava (sensor[2] (33) e sensor[3] (25) >= 2000)
-      // Isso implica que se os sensores centrais perderem a linha, ele tenta essa manobra.
-      // A condição `all_white` é mais genérica.
-      // A lógica original era: while (analogRead(33) >= 2000 && analogRead(25) >= 2000)
-      while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000 && (millis() - start_time_lost < 1500) ){ // Timeout de 1.5s
-        analogWrite(PWMA, 0);     // Motor A (direito) parado
-        analogWrite(PWMB, 100);   // Motor B (esquerdo) para frente -> vira para a direita
-                                  // SE PWMA É DIREITO E PWMB É ESQUERDO
-                                  // Se PWMA é esquerdo e PWMB é direito, então vira para a ESQUERDA.
-                                  // Verifique a sua montagem!
-                                  // Assumindo: PWMA = motor direito, PWMB = motor esquerdo
-                                  // Para virar para a direita: esquerdo para frente (PWMB), direito para trás ou parado.
-                                  // Para virar para a esquerda: direito para frente (PWMA), esquerdo para trás ou parado.
-                                  // Seu código original: PWMA=0, PWMB=100. Se PWMB é o esquerdo, ele vira para a DIREITA.
-        delay(10);
-      }
-    }
-    // --- FIM DA LÓGICA PRINCIPAL DO ROBÔ ---
-
-=======
->>>>>>> Stashed changes
   } else { // Dispositivo não conectado
     analogWrite(PWMA, 0);
     analogWrite(PWMB, 0);
