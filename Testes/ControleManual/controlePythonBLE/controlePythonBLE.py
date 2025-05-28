@@ -6,71 +6,182 @@ import platform
 # --- Configurações e Variáveis Globais ---
 ESP32_NAME = "Hermes_BLE"
 SERVICE_UUID = "e5a220a3-ffd5-42a8-ac9c-4cdc31f68e6b"
-CHARACTERISTIC_UUID_RX = "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+CHARACTERISTIC_UUID_RX = "beb5483e-36e1-4688-b7f5-ea07361b26a8" # Para Python -> ESP32
+CHARACTERISTIC_UUID_TX = "c33d5c6c-005a-45f5-8133-9142d7db0481" # Para ESP32 -> Python (estado)
 
 client_ble = None
 is_connected = False
 send_task = None
 is_programmatic_update = False
+<<<<<<< Updated upstream
 
 
 # --- Funções BLE Assíncronas (MANTIDAS IGUAIS) ---
 # ... (discover_and_connect, disconnect_ble, send_ble_data) ...
+=======
+is_robot_running = False
+current_robot_state_var: ctk.StringVar = None # Adicionando type hint para clareza
+
+# --- Funções BLE Assíncronas ---
+
+def robot_state_notification_handler(sender_handle: int, data: bytearray):
+    """Lida com as notificações de estado recebidas do ESP32."""
+    global app, current_robot_state_var # Certifique-se que app está acessível
+    try:
+        decoded_state = data.decode('utf-8').strip()
+        log_message(f"Estado Robô Recebido (BLE): '{decoded_state}' (Handle: {sender_handle})") # DESCOMENTE PARA DEBUG
+
+        if current_robot_state_var and app: # Verifica se app e a variavel existem
+            # Agendar atualização da GUI na thread principal
+            app.after(0, lambda s=decoded_state: current_robot_state_var.set(f"Estado Robô: {s}"))
+        elif not app:
+            log_message("Erro: app não definida ao tentar atualizar estado do robô.")
+        elif not current_robot_state_var:
+            log_message("Erro: current_robot_state_var não definida ao tentar atualizar estado do robô.")
+
+    except Exception as e:
+        log_message(f"Erro ao decodificar/atualizar estado do robô: {e}")
+        if current_robot_state_var and app:
+            app.after(0, lambda: current_robot_state_var.set("Estado Robô: Erro Decod."))
+
+
+>>>>>>> Stashed changes
 async def discover_and_connect():
     global client_ble, is_connected
     status_label.configure(text="Procurando ESP32...")
+    if current_robot_state_var: current_robot_state_var.set("Estado Robô: ---") # Limpa estado anterior
     app.update_idletasks()
     device = None
     try:
+<<<<<<< Updated upstream
         if platform.system() != "Darwin":
             devices = await BleakScanner.discover(timeout=7.0)
             for d in devices:
                 if d.name == ESP32_NAME:
                     device = d
+=======
+        if platform.system() != "Darwin": # macOS
+            devices = await BleakScanner.discover(timeout=7.0, return_adv=True)
+            # Procurar por nome e depois por UUID de serviço se o nome não estiver no advertisement principal
+            for dev_addr, (dev, adv_data) in devices.items():
+                if dev.name and dev.name == ESP32_NAME:
+                    device = dev
+>>>>>>> Stashed changes
                     break
-        else:
-            device = await BleakScanner.find_device_by_name(ESP32_NAME, timeout=10.0)
+                elif SERVICE_UUID.lower() in [s.lower() for s in adv_data.service_uuids]:
+                    # Se o nome não for encontrado, mas o serviço sim, tenta conectar por endereço
+                    # Isso é um fallback, idealmente o nome está presente
+                    if not device: # Só pega o primeiro que tiver o serviço, se o nome não for achado
+                        log_message(f"ESP32 '{ESP32_NAME}' não achado por nome, mas serviço {SERVICE_UUID} encontrado em {dev.address}")
+                        device = dev # Usa este dispositivo
+        else: # Outras plataformas
+             device = await BleakScanner.find_device_by_name(ESP32_NAME, timeout=10.0)
 
-        if not device:
+        if not device: # Se ainda não encontrou por nome, tenta por filtro de serviço UUID
             status_label.configure(text=f"Não encontrado por nome. Procurando por serviço...")
             app.update_idletasks()
-            device = await BleakScanner.find_device_by_filter(
-                lambda d, ad: SERVICE_UUID.lower() in [s.lower() for s in ad.service_uuids],
-                timeout=10.0
+            # Usando discover com filtro de serviço (mais robusto que find_device_by_filter em alguns casos)
+            devices_found_by_service = await BleakScanner.discover(
+                # service_uuids=[SERVICE_UUID], # Bleak pode ter problemas com isso, filtro manual é mais seguro
+                timeout=10.0, return_adv=True
             )
+<<<<<<< Updated upstream
+=======
+            for dev_addr, (dev, adv_data) in devices_found_by_service.items():
+                if SERVICE_UUID.lower() in [s.lower() for s in adv_data.service_uuids]:
+                    device = dev
+                    log_message(f"Dispositivo encontrado com serviço {SERVICE_UUID}: {device.name if device.name else device.address}")
+                    break
+
+
+>>>>>>> Stashed changes
         if not device:
             status_label.configure(text="ESP32 não encontrado.")
             log_message("ESP32 não encontrado após escaneamento.")
             connect_button.configure(state="normal")
             return
+<<<<<<< Updated upstream
         log_message(f"ESP32 encontrado: {device.name} ({device.address})")
         status_label.configure(text=f"Conectando a {device.name}...")
+=======
+
+        log_message(f"ESP32 encontrado: {device.name if device.name else 'Sem Nome'} ({device.address})")
+        status_label.configure(text=f"Conectando a {device.name if device.name else device.address}...")
+>>>>>>> Stashed changes
         app.update_idletasks()
+
         client_ble = BleakClient(device.address)
         await client_ble.connect()
+
         if client_ble.is_connected:
             is_connected = True
+<<<<<<< Updated upstream
+=======
+            is_robot_running = False
+            start_stop_button.configure(text="Iniciar Robô")
+>>>>>>> Stashed changes
             status_label.configure(text=f"Conectado a {ESP32_NAME}")
             connect_button.configure(text="Desconectar", command=disconnect_ble_thread, state="normal")
             enable_controls(True) # Habilita controles principais
             update_send_button_state() # Habilita/desabilita botão de envio manual conforme o modo
             log_message("Conectado com sucesso!")
+
+            try:
+                log_message(f"Tentando se inscrever para notificações em {CHARACTERISTIC_UUID_TX}...")
+                await client_ble.start_notify(CHARACTERISTIC_UUID_TX, robot_state_notification_handler)
+                log_message("Inscrito para notificações de estado do robô.")
+            except Exception as e:
+                log_message(f"Falha ao se inscrever para notificações de estado: {e}")
+                if current_robot_state_var: current_robot_state_var.set("Estado Robô: Erro Notify")
+
         else:
             status_label.configure(text="Falha ao conectar.")
             log_message("Falha ao conectar.")
             connect_button.configure(state="normal")
+
     except Exception as e:
-        status_label.configure(text=f"Erro: {str(e).splitlines()[0]}")
+        status_label.configure(text=f"Erro conexão: {str(e).splitlines()[0]}")
         log_message(f"Erro durante conexão: {e}")
         is_connected = False
+<<<<<<< Updated upstream
         if client_ble and client_ble.is_connected:
             await client_ble.disconnect()
         client_ble = None
         connect_button.configure(state="normal")
+=======
+        is_robot_running = False
+        if client_ble and client_ble.is_connected: # Tenta desconectar se a conexão foi parcialmente estabelecida
+            try:
+                await client_ble.disconnect()
+            except Exception as disc_e:
+                log_message(f"Erro ao desconectar após falha: {disc_e}")
+        client_ble = None
+        connect_button.configure(state="normal")
+        enable_controls(False)
+        if current_robot_state_var: current_robot_state_var.set("Estado Robô: ---")
+
+>>>>>>> Stashed changes
 
 async def disconnect_ble():
     global client_ble, is_connected
     if client_ble and client_ble.is_connected:
+<<<<<<< Updated upstream
+=======
+        # NOVO: Cancelar inscrição de notificações antes de desconectar
+        try:
+            log_message(f"Cancelando inscrição de notificações em {CHARACTERISTIC_UUID_TX}...")
+            await client_ble.stop_notify(CHARACTERISTIC_UUID_TX)
+            log_message("Inscrição de notificações cancelada.")
+        except Exception as e:
+            log_message(f"Erro ao cancelar inscrição de notificações: {e}")
+
+        if is_robot_running:
+            log_message("Enviando comando de parada antes de desconectar...")
+            await send_ble_data("STATE=4") # Isso já chama log_message dentro
+            is_robot_running = False
+            start_stop_button.configure(text="Iniciar Robô")
+
+>>>>>>> Stashed changes
         status_label.configure(text="Desconectando...")
         app.update_idletasks()
         await client_ble.disconnect()
@@ -78,9 +189,16 @@ async def disconnect_ble():
     is_connected = False
     status_label.configure(text="Desconectado")
     connect_button.configure(text="Conectar", command=connect_ble_thread, state="normal")
+<<<<<<< Updated upstream
     enable_controls(False) # Desabilita controles principais
     send_button.configure(state="disabled") # Desabilita botão de envio manual
+=======
+    enable_controls(False)
+    send_button.configure(state="disabled")
+    if current_robot_state_var: current_robot_state_var.set("Estado Robô: Desconectado")
+>>>>>>> Stashed changes
     log_message("Desconectado.")
+
 
 async def send_ble_data(data_str):
     if client_ble and client_ble.is_connected:
@@ -316,9 +434,18 @@ def on_closing():
 ctk.set_appearance_mode("System")
 ctk.set_default_color_theme("blue")
 
+<<<<<<< Updated upstream
 app = ctk.CTk()
 app.title("Controle ESP32 BLE")
 app.geometry("550x650") # Aumentado um pouco para o switch
+=======
+app = ctk.CTk() # app é definida aqui
+app.title("Controle Robô Hermes BLE")
+app.geometry("600x700")
+
+# current_robot_state_var é inicializada APÓS 'app' ser criada e ANTES de ser usada no CTkLabel
+current_robot_state_var = ctk.StringVar(master=app, value="Estado Robô: N/A")
+>>>>>>> Stashed changes
 
 send_mode_automatic = ctk.BooleanVar(value=True) # Agora está OK
 
@@ -331,6 +458,10 @@ top_controls_frame.pack(pady=5, fill="x")
 
 connect_button = ctk.CTkButton(top_controls_frame, text="Conectar", command=connect_ble_thread, width=100)
 connect_button.pack(side="left", padx=5)
+
+# NOVO: Label para mostrar o estado do robô
+robot_state_label = ctk.CTkLabel(top_controls_frame, textvariable=current_robot_state_var, anchor="w", width=120)
+robot_state_label.pack(side="left", padx=(5,2))
 
 status_label = ctk.CTkLabel(top_controls_frame, text="Status: Desconectado", anchor="w")
 status_label.pack(side="left", padx=(5,10), fill="x", expand=True)
@@ -419,6 +550,18 @@ if __name__ == "__main__":
     asyncio_thread = Thread(target=run_asyncio_loop, args=(loop,), daemon=True)
     asyncio_thread.start()
 
+<<<<<<< Updated upstream
+=======
+    # Chama enable_controls(False) uma vez aqui para garantir o estado inicial correto
+    # antes de qualquer tentativa de conexão.
+    enable_controls(False)
+    send_button.configure(state="disabled") # Garante que o botão de envio comece desabilitado
+    update_send_button_state() # Chama para definir o estado inicial do botão de envio
+    # Definir valor inicial da StringVar aqui, APÓS 'app' e 'current_robot_state_var' serem criadas
+    if current_robot_state_var: # Garante que a variável foi criada
+        current_robot_state_var.set("Estado Robô: Desconectado")
+
+>>>>>>> Stashed changes
     app.protocol("WM_DELETE_WINDOW", on_closing)
     app.mainloop()
 
@@ -427,10 +570,19 @@ if __name__ == "__main__":
         if log_text.winfo_exists(): log_message("Aguardando thread asyncio finalizar...")
         if loop and loop.is_running():
             loop.call_soon_threadsafe(loop.stop)
+<<<<<<< Updated upstream
         asyncio_thread.join(timeout=3)
+=======
+        asyncio_thread.join(timeout=3) # Reduzido timeout para fechar mais rápido
+>>>>>>> Stashed changes
         if asyncio_thread.is_alive():
             if log_text.winfo_exists(): log_message("Thread asyncio não finalizou a tempo.")
         else:
             if log_text.winfo_exists(): log_message("Thread asyncio finalizada.")
     else:
+<<<<<<< Updated upstream
         if log_text.winfo_exists(): log_message("Thread asyncio já estava finalizada.")
+=======
+        if log_text.winfo_exists(): log_message("Thread asyncio já estava finalizada.")
+    print("Aplicação finalizada.")
+>>>>>>> Stashed changes
