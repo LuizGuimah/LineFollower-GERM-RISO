@@ -1,16 +1,12 @@
-<<<<<<< Updated upstream
-#include <BluetoothSerial.h>
-
-BluetoothSerial SerialBT;
-=======
 #include <BLEDevice.h>
 #include <BLEUtils.h>
 #include <BLEServer.h>
 #include <BLE2902.h>
 
-#define SERVICE_UUID        "e5a220a3-ffd5-42a8-ac9c-4cdc31f68e6b"
-#define CHARACTERISTIC_UUID_RX "beb5483e-36e1-4688-b7f5-ea07361b26a8"
->>>>>>> Stashed changes
+// UUIDs
+#define SERVICE_UUID             "e5a220a3-ffd5-42a8-ac9c-4cdc31f68e6b"
+#define CHARACTERISTIC_UUID_RX   "beb5483e-36e1-4688-b7f5-ea07361b26a8" // Para receber comandos do Python
+#define CHARACTERISTIC_UUID_TX   "c33d5c6c-005a-45f5-8133-9142d7db0481" // Para enviar estado para o Python
 
 #define PWMA 4 
 #define AIN2 16
@@ -20,84 +16,44 @@ BluetoothSerial SerialBT;
 #define BIN2 19
 #define PWMB 21
 
-const unsigned int sensor[] = {35, 32, 33, 25, 26, 27};
-<<<<<<< Updated upstream
-const unsigned int sensorLat[] = {13, 39};
+const unsigned int sensor[] = {35, 32, 33, 25, 26, 27}; // Sensores frontais para seguir linha
 const int n_sensores = 6;
-int pesos[] = {3, 2, 1, -1, -2, -3};
+int pesos[] = {3, 2, 1, -1, -2, -3}; // Pesos para cálculo da posição
 
-//speeds
-int rspeed;
-int lspeed;
-const int base_speed = 80;
-
-int pos = 0;
-int sensor_read[n_sensores];
-long sensor_average = 0;
-int sensor_sum = 0;
-int r_read=0;
-int l_read=0;
-int aux = 0, atual = 0;
-
-float p;
-float integral;
-float integral_max = 5000;
-float integral_min = -5000;
-float d;
-float lp;
-float error;
-float correction;
-float sp;
-=======
-const int n_sensores = 6;
-int pesos[] = {3, 2, 1, -1, -2, -3};
-
-const unsigned int sensorLat[] = {13, 39};
+const unsigned int sensorLat[] = {13, 39}; // {Esquerdo, Direito}
 
 int rspeed;
 int lspeed;
-int base_speed = 80;
+int base_speed = 100; // Velocidade base dos motores
 const int V_max = 255;
->>>>>>> Stashed changes
 
 float Kp = 2.4;
 float Ki = 0.002;
 float Kd = 7;
-<<<<<<< Updated upstream
-int state = 0;
-int pid_calc();
-void calc_turn();
+float p, integral = 0, d, lp = 0; // Termos do PID (integral e lp precisam ser persistentes)
+float error;                      // Erro atual (pos - sp)
+float correction;                 // Correção calculada pelo PID
+float sp = 0;                     // Setpoint (posição desejada, geralmente 0 para o centro da linha)
 
-void setup()
-{
-  SerialBT.begin("Hermes");
-  //sensors
-  for(int i=0; i<n_sensores; i++){
-    pinMode(sensor[i], INPUT);
-  }
-  atual = 0;
-  //motors
-=======
-float p, integral = 0, d, lp = 0;
-float error;
-float correction;
-float sp = 0;
-
-int state = 0;
-int aux = 0;
-int r_read=0;
-int l_read=0;
-unsigned long atual = 0;
-
-int sensor_read[n_sensores];
-long sensor_average = 0;
-int sensor_sum = 0;
-int pos = 0;
+int sensor_read[n_sensores]; // Leituras brutas dos sensores de linha
+long sensor_average = 0;     // Média ponderada das leituras (numerador)
+int sensor_sum = 0;          // Soma das leituras (denominador)
+int pos = 0;                 // Posição calculada da linha
 
 int r_lat_read = 0;
 int l_lat_read = 0;
 
+int state = 4;                                    // Robô começa PARADO
+int old_state_for_notification = -1;              // Para enviar notificação apenas quando o estado mudar
+unsigned long last_state_send_time = 0;           // Para enviar estado periodicamente
+const unsigned long state_send_interval = 1000;   // Intervalo para enviar estado (1 segundo)
+
+unsigned long atual = 0;  // Timestamp para controle de tempo na máquina de estados
+int aux = 0;              // Variável auxiliar para a lógica da máquina de estados
+
+// Variáveis de Conexão BLE
 BLECharacteristic *pCharacteristicRX;
+BLECharacteristic *pCharacteristicTX;
 BLEServer *pServer_global;
 bool deviceConnected = false;
 bool oldDeviceConnected = false;
@@ -106,10 +62,23 @@ int pid_calc();
 void calc_turn();
 void updatePIDAndSpeedConstants(String input);
 
+
+// === CALLBACKS BLE ===
 class MyServerCallbacks: public BLEServerCallbacks {
     void onConnect(BLEServer* pSrv) {
       deviceConnected = true;
+      oldDeviceConnected = true; // Para a lógica do loop principal
       Serial.println("Dispositivo Conectado via BLE");
+      // Enviar o estado inicial assim que conectar
+      if (pCharacteristicTX != nullptr) {
+        char stateStr[2]; // Suficiente para "0" a "9" + null terminator
+        sprintf(stateStr, "%d", state);
+        pCharacteristicTX->setValue(stateStr);
+        pCharacteristicTX->notify();
+        Serial.print("Estado inicial enviado via BLE: ");
+        Serial.println(stateStr);
+        old_state_for_notification = state; // Atualiza o estado antigo para evitar reenvio imediato
+      }
     }
 
     void onDisconnect(BLEServer* pSrv) {
@@ -127,22 +96,22 @@ class MyCharacteristicCallbacks: public BLECharacteristicCallbacks {
         String inputString = String(rxValue_str.c_str());
         Serial.print("BLE Recebido: ");
         Serial.println(inputString);
-        updatePIDAndSpeedConstants(inputString);
+        updatePIDAndSpeedConstants(inputString); // Fun de parsing
       }
     }
 };
 
+
 void setup() {
   Serial.begin(115200);
   Serial.println("Iniciando Hermes_BLE...");
-  
+  // state = 4; // Garante que o robô comece PARADO
+
   for(int i=0; i<n_sensores; i++){
     pinMode(sensor[i], INPUT);
   }
   pinMode(sensorLat[0], INPUT);
   pinMode(sensorLat[1], INPUT);
-
->>>>>>> Stashed changes
   pinMode(STBY, OUTPUT);
   pinMode(PWMA, OUTPUT);
   pinMode(PWMB, OUTPUT);
@@ -150,45 +119,35 @@ void setup() {
   pinMode(AIN2, OUTPUT);
   pinMode(BIN1, OUTPUT);
   pinMode(BIN2, OUTPUT);
-
-<<<<<<< Updated upstream
-  analogWrite(PWMA, 0);
-  analogWrite(PWMB, 0);
-=======
->>>>>>> Stashed changes
   digitalWrite(STBY, HIGH);
   digitalWrite(AIN1, HIGH);
   digitalWrite(AIN2, LOW);
   digitalWrite(BIN1, HIGH);
-<<<<<<< Updated upstream
   digitalWrite(BIN2, LOW); 
-  
-  Serial.begin(115200);
-  
-  sp = 0;
-  while(!SerialBT.available()) {delay(10);}
-  String input = SerialBT.readString();  // Read the incoming data as a string
-  updatePIDConstants(input); 
-
-  analogWrite(PWMA, base_speed);
-  analogWrite(PWMB, base_speed);
-=======
-  digitalWrite(BIN2, LOW);
-  
   analogWrite(PWMA, 0);
   analogWrite(PWMB, 0);
   
+  // Configuração do BLE
   BLEDevice::init("Hermes_BLE");
   pServer_global = BLEDevice::createServer();
   pServer_global->setCallbacks(new MyServerCallbacks());
 
   BLEService *pService = pServer_global->createService(SERVICE_UUID);
 
+  // Característica RX (para receber comandos do Python)
   pCharacteristicRX = pService->createCharacteristic(
                       CHARACTERISTIC_UUID_RX,
                       BLECharacteristic::PROPERTY_WRITE | BLECharacteristic::PROPERTY_WRITE_NR
                     );
   pCharacteristicRX->setCallbacks(new MyCharacteristicCallbacks());
+
+  // Característica TX (para enviar estado para o Python)
+  pCharacteristicTX = pService->createCharacteristic(
+                      CHARACTERISTIC_UUID_TX,
+                      BLECharacteristic::PROPERTY_READ | // Permitir leitura (opcional, mas bom ter)
+                      BLECharacteristic::PROPERTY_NOTIFY // ESSENCIAL para enviar dados sem o Python pedir
+                    );
+  pCharacteristicTX->addDescriptor(new BLE2902()); // ESSENCIAL para notificações/indicações
 
   pService->start();
 
@@ -202,274 +161,175 @@ void setup() {
   atual = 0;
   integral = 0;
   lp = 0;
->>>>>>> Stashed changes
+  old_state_for_notification = state; // Inicializa o estado antigo
 }
 
 
-void loop()
-{
-<<<<<<< Updated upstream
-  
-  if (SerialBT.available()) {  // Check if Bluetooth data is available
-    String input = SerialBT.readString();  // Read the incoming data as a string
-    updatePIDConstants(input);  // Function to parse and update Kp, Ki, Kd
-  }
-  
-  /*
-=======
+void loop() {
+  unsigned long currentTime = millis(); // Para envio periódico
+
   if (deviceConnected) {
-  
->>>>>>> Stashed changes
-  Serial.print("state: ");
-  Serial.print(state);
-  Serial.print("\taux: ");
-  Serial.print(aux);
-  Serial.print("\tesquerdo: ");
-  Serial.print(analogRead(13));
-  Serial.print("\tdireito: ");
-  Serial.print(analogRead(39));
-  Serial.print("\tatual: ");
-  Serial.println(atual);
-<<<<<<< Updated upstream
- */
-  //boolean value
-  //1 if reading white
-  //0 if reading black
-  r_read = analogRead(39) <= 2000;
-  l_read = analogRead(13) <= 1000;
-=======
-  //boolean value
-  //1 if reading white
-  //0 if reading black
-  r_read = analogRead(39) <= 100;
-  l_read = analogRead(13) <= 100;
->>>>>>> Stashed changes
-  switch (state){
-    case 0:
-      calc_turn();
-      
-      if(r_read){
-        state++;
-      }
-<<<<<<< Updated upstream
-      
-
-=======
-
-      if(analogRead(35) >= 2000 && analogRead(32) >= 2000 && analogRead(33) >= 2000 && analogRead(26) >= 2000 && analogRead(25) >= 2000 && analogRead(27) >= 2000){
-        while (analogRead(33) >= 2000 && analogRead(25) >= 2000){
-          analogWrite(PWMA, 0);
-          analogWrite(PWMB, 100);
+    if (state != old_state_for_notification || (currentTime - last_state_send_time >= state_send_interval)) { // Verificar se o estado mudou ou se é hora de enviar periodicamente
+        if (pCharacteristicTX != nullptr) {
+            char stateStr[3]; // Suficiente para "-1" a "99" + null terminator (embora state só vá de 0-4)
+            sprintf(stateStr, "%d", state);
+            pCharacteristicTX->setValue(stateStr);
+            pCharacteristicTX->notify();
+            old_state_for_notification = state;
+            last_state_send_time = currentTime;
         }
-      }
-      
->>>>>>> Stashed changes
-      break;
-    case 1:
-      calc_turn();
-
-      if (!r_read)
-        state++;
-
-<<<<<<< Updated upstream
-      break;
-    case 2:
-      calc_turn();
-      
-      
-        if (r_read || l_read){//se o da direita ler branco
-    
-          if(atual == 0){//se for a primeira vez que o da direita leu branco, salva como referencia para subtrair depois
-            atual = millis();
-          }
-        }
-
-      if(atual != 0){
-        if (millis() - atual >= 300){
-          if(aux == 0){
-
-          atual = 0;
-          state ++;
-          }else{
-
-=======
-      if(analogRead(35) >= 2000 && analogRead(32) >= 2000 && analogRead(33) >= 2000 && analogRead(26) >= 2000 && analogRead(25) >= 2000 && analogRead(27) >= 2000){
-        while (analogRead(33) >= 2000 && analogRead(25) >= 2000){
-          analogWrite(PWMA, 0);
-          analogWrite(PWMB, 100);
-        }
-      }
-      break;
-    case 2:
-      calc_turn();
-   
-      if (r_read || l_read){//se o da direita ler branco
-        if(atual == 0){//se for a primeira vez que o da direita leu branco, salva como referencia para subtrair depois
-          atual = millis();
-        }
-      }
-      if(atual != 0){
-        if (millis() - atual >= 100){
-          if(aux == 0){
-          atual = 0;
-          state ++;
-          }else{
->>>>>>> Stashed changes
-          aux = 0;
-          atual = 0;
-          }
-        }else{
-<<<<<<< Updated upstream
-
-=======
->>>>>>> Stashed changes
-          if(l_read){//se o da esquerda ler branco, salva isso
-            aux = 1;
-          }
-        }
-      }
-
-<<<<<<< Updated upstream
-=======
-      if(analogRead(35) >= 2000 && analogRead(32) >= 2000 && analogRead(33) >= 2000 && analogRead(26) >= 2000 && analogRead(25) >= 2000 && analogRead(27) >= 2000){
-        while (analogRead(33) >= 2000 && analogRead(25) >= 2000){
-          analogWrite(PWMA, 0);
-          analogWrite(PWMB, 100);
-        }
-      }
->>>>>>> Stashed changes
-      break;
-    case 3:
-      if (!r_read)
-        state++;
-<<<<<<< Updated upstream
-=======
-      if(analogRead(35) >= 2000 && analogRead(32) >= 2000 && analogRead(33) >= 2000 && analogRead(26) >= 2000 && analogRead(25) >= 2000 && analogRead(27) >= 2000){
-        while (analogRead(33) >= 2000 && analogRead(25) >= 2000){
-          analogWrite(PWMA, 0);
-          analogWrite(PWMB, 100);
-        }
-      }
->>>>>>> Stashed changes
-      break;
-    case 4:
-      analogWrite(PWMA, 0);
-      analogWrite(PWMB, 0);
-<<<<<<< Updated upstream
-      while(!SerialBT.available()) {delay(10);}
-      String input = SerialBT.readString();  // Read the incoming data as a string
-      updatePIDConstants(input);
-      state=0;
-  }
-
-//leave the curve
-  if(analogRead(35) >= 2000 && analogRead(32) >= 2000 && analogRead(33) >= 2000 && analogRead(26) >= 2000 && analogRead(25) >= 2000 && analogRead(27) >= 2000){
-    while (analogRead(33) >= 2000 && analogRead(25) >= 2000){
-      analogWrite(PWMA, 0);
-      analogWrite(PWMB, 100);
     }
-  }
-  
-  delay(10);
-=======
-      break;
-  }
-  }else{
+
+    // --- LÓGICA PRINCIPAL DO ROBÔ ---
+    r_lat_read = analogRead(sensorLat[1]) <= 100; 
+    l_lat_read = analogRead(sensorLat[0]) <= 100;
+    bool all_white = true; // Resetar a cada loop
+
+    int previous_state_for_debug = state; // Para debug de mudança de estado
+
+     switch (state){
+      case 0:
+        calc_turn(); // Segue a linha
+        if(r_lat_read){ 
+          state++; 
+        }
+        tratarPerdaLinha();
+        break;
+      
+      case 1:
+        calc_turn(); // Continua seguindo a linha
+        if (!r_lat_read){ 
+          state++; 
+        }
+        tratarPerdaLinha();
+        break;
+      
+      case 2:
+        calc_turn(); // Continua seguindo a linha
+        if (r_lat_read || l_lat_read){ 
+          if(atual == 0){ 
+            atual = millis(); 
+          } 
+        }
+        if(atual != 0){ 
+          if (millis() - atual >= 300){ 
+            if(aux == 0){ 
+              atual = 0; 
+              state++; 
+            } else { 
+              aux = 0; 
+              atual = 0; 
+            } 
+          } else { 
+            if(l_lat_read){ 
+              aux = 1; 
+            } 
+          } 
+        }
+        tratarPerdaLinha();
+        break;
+
+      case 3: // Saindo da curva/marcação
+        calc_turn(); // Continua seguindo a linha
+        if (!r_lat_read){ 
+          state++; 
+        }
+        tratarPerdaLinha();
+        break;
+      
+      case 4: // Estado de parada ou espera
+        analogWrite(PWMA, 0);
+        analogWrite(PWMB, 0);
+        break;
+    }
+
+  } else { // Dispositivo não conectado
     analogWrite(PWMA, 0);
     analogWrite(PWMB, 0);
-    if (oldDeviceConnected) {
-        delay(500);
+    if (oldDeviceConnected && !deviceConnected) { // Transição de conectado para desconectado
+        delay(500); 
         Serial.println("Conexão perdida, advertising deveria ter sido reiniciado pelo callback.");
-        oldDeviceConnected = deviceConnected;
     }
   }
 
-  if (deviceConnected && !oldDeviceConnected) {
-      oldDeviceConnected = deviceConnected;
-  }
-  if (!deviceConnected && oldDeviceConnected) {
-      oldDeviceConnected = deviceConnected;
-  }
-
+  oldDeviceConnected = deviceConnected;  // Atualiza o estado da conexão anterior para a próxima iteração
   
->>>>>>> Stashed changes
+  delay(10);
 }
 
-int pid_calc()
-{
-  sensor_average = 0;
+
+
+void tratarPerdaLinha() {  // FUNÇÃO PARA TRATAR PERDA DE LINHA
+    bool all_white = true;
+    for(int i = 0; i < n_sensores; i++) {
+        if(analogRead(sensor[i]) < 2000) { // Se algum sensor ler preto (valor baixo)
+            all_white = false;
+            break;
+        }
+    }
+
+    if(all_white) {
+        unsigned long startTimeLost = millis();
+        // Lógica: o robo deve virar para um lado para reencontrar a linha
+        while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000 && (millis() - startTimeLost < 1500)) { // Timeout de 1.5s
+            analogWrite(PWMA, 0);   
+            analogWrite(PWMB, 140); 
+            delay(10);
+        }
+        // Após a tentativa, pode ser útil parar brevemente ou reavaliar antes de continuar o PID
+        // analogWrite(PWMA, 0); // Opcional: Parar os motores após a tentativa
+        // analogWrite(PWMB, 0);
+        // delay(50);
+    }
+}
+
+
+int pid_calc() {
+  sensor_average = 0; 
   sensor_sum = 0;
 
-<<<<<<< Updated upstream
-  
-
-  for(int i = 0; i < n_sensores; i++)
-  {
-    sensor_read[i]=analogRead(sensor[i]);
-    sensor_average += sensor_read[i]*pesos[i]*100;
-    sensor_sum += sensor_read[i];
-  }
-
-  pos = int(sensor_average / sensor_sum);
-
-  error = pos-sp;
-  p = error;
-  integral += p;
-  integral = constrain(integral, integral_min, integral_max);
-  d = p - lp;
-  lp = p;
-  
-  return  int(Kp*p + Ki*integral + Kd*d);
-=======
   for(int i = 0; i < n_sensores; i++) {
-    sensor_read[i] = analogRead(sensor[i]);
-    sensor_average += (long)sensor_read[i] * pesos[i] * 100;
+    sensor_read[i] = analogRead(sensor[i]); 
+    sensor_average += (long)sensor_read[i] * pesos[i] * 100; 
     sensor_sum += sensor_read[i];
   }
 
-  if (sensor_sum == 0) {
-    if (lp > 0) return Kp * 1000;
-    if (lp < 0) return Kp * -1000;
+  if (sensor_sum == 0) {            // Todos os sensores leram algo que somou zero (ou todos leram valor mínimo)
+    if (lp > 0) return Kp * 1000;   // Se o último erro 'p' (lp) era para a direita, continua virando forte para direita
+    if (lp < 0) return Kp * -1000;  // Se o último erro 'p' (lp) era para a esquerda, continua virando forte para esquerda
     return 0;
   }
 
   pos = sensor_average / sensor_sum;
-  error = pos - sp;
-  p = error;
-  integral += p;
 
+  error = pos - sp;
+  p = error; 
+  integral += p;
+  
   float integral_max = 5000;
   float integral_min = -5000;
   integral = constrain(integral, integral_min, integral_max);
   
-  d = p - lp;
-  lp = p;
-  
+  d = p - lp;       
+  lp = p;           
+
   return int(Kp * p + Ki * integral + Kd * d);
->>>>>>> Stashed changes
 }
 
-void calc_turn()
-{
-<<<<<<< Updated upstream
-  correction = pid_calc();
-  rspeed = base_speed - correction;
-  lspeed = base_speed + correction;
-  
-  rspeed = constrain(rspeed, 0, 255);
-  lspeed = constrain(lspeed, 0, 255);
-=======
-  if (!deviceConnected && state != 4) {
+void calc_turn() {
+  if (!deviceConnected && state != 4) { // Não calcula nem move se não estiver conectado, a menos que esteja no estado de parada intencional
       analogWrite(PWMA, 0);
       analogWrite(PWMB, 0);
       return;
   }
-  
   correction = pid_calc();
-  rspeed = base_speed - correction;
+  
+  // Se correction > 0, linha à direita, precisa virar à DIREITA: rspeed DIMINUI, lspeed AUMENTA
+  // Se correction < 0, linha à esquerda, precisa virar à ESQUERDA: rspeed AUMENTA, lspeed DIMINUI
+  rspeed = base_speed - correction; 
   lspeed = base_speed + correction;
-
-//BLOCO NOVO VOLKMAN-----------------------------------------------------------------------
+  
+  //BLOCO NOVO VOLKMAN-----------------------------------------------------------------------
   
   if (lspeed <= 0)                          //Inverte a rotação do motor para reduzir a velocidade mais rápido
   {
@@ -506,50 +366,24 @@ void calc_turn()
     //    erro_I = erro_I - ((erro + erro_anterior) / 2) * t_loop;  //anti windup
   }
 
-  //-----------------------------------------------------------------------------------------------------------
->>>>>>> Stashed changes
   
   analogWrite(PWMA, rspeed);
   analogWrite(PWMB, lspeed); 
 }
 
-<<<<<<< Updated upstream
-void updatePIDConstants(String input) {
-  input.trim();
-  int kpIndex = input.indexOf("Kp=");
-  int kiIndex = input.indexOf("Ki=");
-  int kdIndex = input.indexOf("Kd=");
-  
-  if (kpIndex != -1 && kiIndex != -1 && kdIndex != -1) {
-    String kpValue = input.substring(kpIndex + 3, input.indexOf(",", kpIndex));
-    String kiValue = input.substring(kiIndex + 3, input.indexOf(",", kiIndex));
-    String kdValue = input.substring(kdIndex + 3);
 
-    Kp = kpValue.toFloat();
-    Ki = kiValue.toFloat();
-    Kd = kdValue.toFloat();
-
-    SerialBT.print("Updated Kp: ");
-    SerialBT.print(Kp);
-    SerialBT.print(", Ki: ");
-    SerialBT.print(Ki);
-    SerialBT.print(", Kd: ");
-    SerialBT.println(Kd);
-  } else {
-    SerialBT.println("Formato invalido! Esperado: Kp=0.5,Ki=0.0003,Kd=0.6");
-=======
 void updatePIDAndSpeedConstants(String input) {
-  input.trim();
+  input.trim(); 
   Serial.print("Parsing BLE input: "); Serial.println(input);
-
   int currentPos = 0;
   bool updatedSomething = false;
+  int previous_state_for_update_func = state; // Para verificar se o comando mudou o estado
 
   while(currentPos < input.length()){
     int equalSignIdx = input.indexOf('=', currentPos);
-    if(equalSignIdx == -1) break;
+    if(equalSignIdx == -1) break; 
     int commaIdx = input.indexOf(',', equalSignIdx);
-    if(commaIdx == -1) commaIdx = input.length();
+    if(commaIdx == -1) commaIdx = input.length(); 
     String paramName = input.substring(currentPos, equalSignIdx);
     String paramValueStr = input.substring(equalSignIdx + 1, commaIdx);
     paramName.trim();
@@ -569,18 +403,18 @@ void updatePIDAndSpeedConstants(String input) {
       updatedSomething = true;
     } else if (paramName.equalsIgnoreCase("Bs")) {
       base_speed = paramValueStr.toInt();
-      base_speed = constrain(base_speed, 0, 255);
+      base_speed = constrain(base_speed, 0, 255); 
       Serial.print("Base Speed (Bs) atualizada para: "); Serial.println(base_speed);
       updatedSomething = true;
-    } else if (paramName.equalsIgnoreCase("STATE")) {
+    } else if (paramName.equalsIgnoreCase("STATE")) { 
         int newState = paramValueStr.toInt();
-        if (newState >= 0 && newState <= 4) {
-            state = newState;
+        if (newState >= 0 && newState <= 4) { 
+            state = newState; // ATUALIZA O ESTADO GLOBAL
             Serial.print("Estado alterado para: "); Serial.println(state);
-            if (state == 0) {
-                integral = 0;
-                lp = 0;
-                atual = 0;
+            if (state == 0) { 
+                integral = 0; 
+                lp = 0;       
+                atual = 0;    
             }
             updatedSomething = true;
         } else {
@@ -594,8 +428,15 @@ void updatePIDAndSpeedConstants(String input) {
     Serial.println("Formato invalido ou nenhum parametro reconhecido! Ex: Kp=0.5,Ki=0.0003,Kd=0.6,Bs=100,STATE=0");
   } else {
     Serial.println("Constantes atualizadas.");
-    if (state == 0 && deviceConnected) {
+    // Se o estado foi alterado por um comando, força o envio da notificação imediatamente
+    if (state != previous_state_for_update_func && deviceConnected && pCharacteristicTX != nullptr) {
+        char stateStr[3];
+        sprintf(stateStr, "%d", state);
+        pCharacteristicTX->setValue(stateStr);
+        pCharacteristicTX->notify();
+        Serial.print("Estado (após comando) enviado via BLE: "); Serial.println(stateStr);
+        old_state_for_notification = state; // Atualiza para evitar reenvio no loop principal
+        last_state_send_time = millis();    // Reseta timer de envio periódico
     }
->>>>>>> Stashed changes
   }
 }
