@@ -6,7 +6,7 @@ This project was developed by a group of electrical engineering and computer sci
 
 The line-following robot is designed to detect and follow tracks with high precision. It uses reflectance sensors to monitor the line and dynamically adjust its position, ensuring efficient and fast movement.
 
-![Robot photo](media/photo_superior_robocore2025.jpg)
+![Robot photo](media/photo_robocore2025.jpg)
 
 ## Hardware Used
 
