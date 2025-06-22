@@ -25,6 +25,7 @@ const unsigned int sensorLat[] = {13, 39}; // {Esquerdo, Direito}
 int rspeed;
 int lspeed;
 int base_speed = 100; // Velocidade base dos motores
+const int V_max = 255;
 
 float Kp = 2.4;
 float Ki = 0.002;
@@ -180,8 +181,8 @@ void loop() {
     }
 
     // --- LÓGICA PRINCIPAL DO ROBÔ ---
-    r_lat_read = analogRead(sensorLat[1]) <= 100; 
-    l_lat_read = analogRead(sensorLat[0]) <= 100;
+    r_lat_read = analogRead(sensorLat[1]) <= 3200; 
+    l_lat_read = analogRead(sensorLat[0]) <= 3200;
     bool all_white = true; // Resetar a cada loop
 
     int previous_state_for_debug = state; // Para debug de mudança de estado
@@ -253,7 +254,7 @@ void loop() {
 
   oldDeviceConnected = deviceConnected;  // Atualiza o estado da conexão anterior para a próxima iteração
   
-  delay(10);
+  //delay(10);
 }
 
 
@@ -268,13 +269,27 @@ void tratarPerdaLinha() {  // FUNÇÃO PARA TRATAR PERDA DE LINHA
     }
 
     if(all_white) {
-        unsigned long startTimeLost = millis();
         // Lógica: o robo deve virar para um lado para reencontrar a linha
-        while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000 && (millis() - startTimeLost < 1500)) { // Timeout de 1.5s
-            analogWrite(PWMA, 0);   
-            analogWrite(PWMB, 120); 
-            delay(10);
+///////////////////////////////////////////
+        Serial.println(lp);
+        int spinSpeed = base_speed + 30;
+        if (spinSpeed>255) spinSpeed = 255;
+        if(lp>0){
+          while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000) { // Timeout de 1.5s
+              analogWrite(PWMA, 0);   
+              analogWrite(PWMB, spinSpeed); 
+              delay(10);
+              Serial.println(lp);
+          }
+        }else{
+          while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000) { // Timeout de 1.5s
+              analogWrite(PWMA, spinSpeed);   
+              analogWrite(PWMB, 0); 
+              delay(10);
+              Serial.println(lp);
+          }
         }
+//////////////////////////////////////////////tentar com lp ao inves de correction
         // Após a tentativa, pode ser útil parar brevemente ou reavaliar antes de continuar o PID
         // analogWrite(PWMA, 0); // Opcional: Parar os motores após a tentativa
         // analogWrite(PWMB, 0);
@@ -321,6 +336,23 @@ void calc_turn() {
       analogWrite(PWMB, 0);
       return;
   }
+
+/////////////////////////////////////////////////
+  /*static unsigned long lastTime = 0;
+  static int count = 0;
+  
+  count++;
+  
+  if (millis() - lastTime >= 1000) {  // Contagem por segundo
+    Serial.print("Frequência PID: ");
+    Serial.print(count);
+    Serial.println(" Hz");
+    count = 0;
+    lastTime = millis();
+  }
+  */
+/////////////////////////////////////////////////
+  
   correction = pid_calc();
   
   // Se correction > 0, linha à direita, precisa virar à DIREITA: rspeed DIMINUI, lspeed AUMENTA
@@ -328,8 +360,43 @@ void calc_turn() {
   rspeed = base_speed - correction; 
   lspeed = base_speed + correction;
   
-  rspeed = constrain(rspeed, 0, 255); // Limita a velocidade entre 0 e 255
-  lspeed = constrain(lspeed, 0, 255);
+  //BLOCO NOVO VOLKMAN-----------------------------------------------------------------------
+  
+  if (lspeed <= 0)                          //Inverte a rotação do motor para reduzir a velocidade mais rápido
+  {
+    lspeed = -lspeed;
+    digitalWrite(BIN1, LOW);
+    digitalWrite(BIN2, HIGH);
+  }
+  else
+  {
+    digitalWrite(BIN1, HIGH);
+    digitalWrite(BIN2, LOW);
+  }
+
+  if (rspeed <= 0)                        //Inverte a rotação do motor para reduzir a velocidade mais rápido
+  {
+    rspeed = -rspeed;
+    digitalWrite(AIN1, LOW);
+    digitalWrite(AIN2, HIGH);
+  }
+  else
+  {
+    digitalWrite(AIN1, HIGH);
+    digitalWrite(AIN2, LOW);
+  }
+
+  if (lspeed >= V_max)
+  {
+    lspeed = V_max;
+    //    erro_I = erro_I - ((erro + erro_anterior) / 2) * t_loop;  //anti windup
+  }
+  if (rspeed >= V_max)
+  {
+    rspeed = V_max;
+    //    erro_I = erro_I - ((erro + erro_anterior) / 2) * t_loop;  //anti windup
+  }
+
   
   analogWrite(PWMA, rspeed);
   analogWrite(PWMB, lspeed); 
