@@ -6,7 +6,7 @@ This project was developed by a group of electrical engineering and computer sci
 
 The line-following robot is designed to detect and follow tracks with high precision. It uses reflectance sensors to monitor the line and dynamically adjust its position, ensuring efficient and fast movement.
 
-![Robot photo](media/photo_2.jpg)
+![Robot photo](media/photo_superior_robocore2025.jpg)
 
 ## Hardware Used
 
@@ -14,7 +14,7 @@ The line-following robot is designed to detect and follow tracks with high preci
 |--------------------|----------------------------------------------|
 | **Microcontroller** | ESP32-WROOM                                  |
 | **Line Sensors**   | Pololu QTR-8RC sensor array                  |
-| **Lateral Sensors** | Two TCRT5000 sensors                        |
+| **Lateral Sensors** | Two QRE sensors from ROBOCORE               |
 | **Motor Driver**   | TB6612FN                            |
 | **Motors**        | Pololu N20 10,000 RPM motors with 1:10 gearbox |
 | **Encoders**      | Pololu encoders                               |
@@ -49,4 +49,17 @@ Adjust Kd: Add a value to reduce oscillations.
 
 Adjust Ki: Small values can help correct systematic deviations.
 
+## Melhorias pós-Robocore 2025
+
+* Modularizar os sensores da frente dianteiros com 8 sensores de reflectância QRE da robocore, disponível em: [Sensor QRE Robocore](https://www.robocore.net/sensor-robo/sensor-de-linha-qre-analogico/com-barra-soldada?gad_source=1&gad_campaignid=16517456855&gbraid=0AAAAADzrkI4hDZskGFMA3gS0u2SYhlMdw&gclid=Cj0KCQjw097CBhDIARIsAJ3-nxdo5wJS_0_qzqoj_105IrNbTG1M5sZ5zkBkiOPcLkSAlXD_NjUZNIIaAnjyEALw_wcB)
+
+* Alterar os Pneus de borracha para o modelo StickyMAX S20 (Necessita de muito teste), disponível em: [Roda S20 macia Robocore](https://www.robocore.net/roda/roda-stickymax-s20-22mm?srsltid=AfmBOopxZ_wZKX5jpfMzeoPc_oW4sheJgAukbF4VQag6QChXWixrqtTk)
+
+* Trocar e anexar diretamente na placa os encoders dos motores para melhorar a fiação do robo;
+
+* Adquirir novos esps com melhor conexão WIRELESS (Na competição o bluetooth e o BLE não funcionam com perfeição no modelo padrão do ESP32 que estamos usando);
+
+* Adquirir/trocar a bateria por uma de menor peso e melhor eficência (A tamandutech, a omega e a Raiju usam baterias de 300mAh);
+
+* Melhorar a conexão da bateria com a placa (O jeito atual fica pegando levemente na roda);
 
