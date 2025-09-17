@@ -183,8 +183,6 @@ void loop() {
     // --- LÓGICA PRINCIPAL DO ROBÔ ---
     r_lat_read = analogRead(sensorLat[1]) <= 3200; 
     l_lat_read = analogRead(sensorLat[0]) <= 3200;
-    bool all_white = true; // Resetar a cada loop
-
     int previous_state_for_debug = state; // Para debug de mudança de estado
 
      switch (state){
@@ -259,76 +257,99 @@ void loop() {
 
 
 
-void tratarPerdaLinha() {  // FUNÇÃO PARA TRATAR PERDA DE LINHA
-    bool all_white = true;
-    for(int i = 0; i < n_sensores; i++) {
-        if(analogRead(sensor[i]) < 2000) { // Se algum sensor ler preto (valor baixo)
-            all_white = false;
-            break;
-        }
+void tratarPerdaLinha() {
+  bool all_black = true;
+  for (int i = 0; i < n_sensores; i++) {
+    if (analogRead(sensor[i]) < 3000) {  // Se algum sensor estiver vendo branco (linha), não é perda total
+      all_black = false;
+      break;
     }
+  }
 
-    if(all_white) {
-        // Lógica: o robo deve virar para um lado para reencontrar a linha
-///////////////////////////////////////////
-        Serial.println(lp);
-        int spinSpeed = base_speed + 30;
-        if (spinSpeed>255) spinSpeed = 255;
-        if(lp>0){
-          while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000) { // Timeout de 1.5s
-              analogWrite(PWMA, 0);   
-              analogWrite(PWMB, spinSpeed); 
-              delay(10);
-              Serial.println(lp);
-          }
-        }else{
-          while (analogRead(sensor[2]) >= 2000 && analogRead(sensor[3]) >= 2000) { // Timeout de 1.5s
-              analogWrite(PWMA, spinSpeed);   
-              analogWrite(PWMB, 0); 
-              delay(10);
-              Serial.println(lp);
-          }
-        }
-//////////////////////////////////////////////tentar com lp ao inves de correction
-        // Após a tentativa, pode ser útil parar brevemente ou reavaliar antes de continuar o PID
-        // analogWrite(PWMA, 0); // Opcional: Parar os motores após a tentativa
-        // analogWrite(PWMB, 0);
-        // delay(50);
+  if (all_black) {
+    Serial.println("Perda de linha detectada!");
+
+    if (lp > 0) {
+      while (analogRead(sensor[2]) < 3000 && analogRead(sensor[3]) < 3000) {  // Espera até reencontrar a linha no centro
+        analogWrite(PWMA, 0);
+        analogWrite(PWMB, base_speed);
+        delay(10);
+      }
+    } else {
+      while (analogRead(sensor[2]) < 3000 && analogRead(sensor[3]) < 3000) {
+        analogWrite(PWMA, base_speed);
+        analogWrite(PWMB, 0);
+        delay(10);
+      }
     }
+  }
 }
 
 
 int pid_calc() {
+  static unsigned long lastTime = micros();
+  unsigned long now = micros();
+  float dt = (now - lastTime) / 1000.0;  // dt em ms, convertendo para segundos
+  if (dt <= 0) dt = 0.1;                 // Proteção contra divisão por zero
+  lastTime = now;
+
   sensor_average = 0; 
   sensor_sum = 0;
+  bool all_white = true;
 
-  for(int i = 0; i < n_sensores; i++) {
-    sensor_read[i] = analogRead(sensor[i]); 
-    sensor_average += (long)sensor_read[i] * pesos[i] * 100; 
+  for (int i = 0; i < n_sensores; i++) {
+    sensor_read[i] = analogRead(sensor[i]);
+    if (sensor_read[i] > 1000) all_white = false;  // Se algum sensor vê preto, não é tudo branco
+    sensor_average += (long)sensor_read[i] * pesos[i] * 100;
     sensor_sum += sensor_read[i];
   }
 
-  if (sensor_sum == 0) {            // Todos os sensores leram algo que somou zero (ou todos leram valor mínimo)
-    if (lp > 0) return Kp * 1000;   // Se o último erro 'p' (lp) era para a direita, continua virando forte para direita
-    if (lp < 0) return Kp * -1000;  // Se o último erro 'p' (lp) era para a esquerda, continua virando forte para esquerda
+  // ======== ENCRUZILHADA (TUDO BRANCO) ========
+  if (all_white) {
+    pos = 0;  // Assume centralizado (ou outro valor fixo, a seu critério)
+  } else if (sensor_sum != 0) {
+    pos = sensor_average / sensor_sum;
+  } else {
+    // ======== PERDA COMPLETA DA LINHA (TUDO PRETO)[TUDO BRANCO ACHO!!!] ========
+    if (lp > 0) return Kp * 1000;
+    if (lp < 0) return Kp * -1000;
     return 0;
   }
 
-  pos = sensor_average / sensor_sum;
-
   error = pos - sp;
-  p = error; 
-  integral += p;
-  
+  p = error;
+
+  integral += p * dt;
+
+  // Anti-windup
   float integral_max = 5000;
   float integral_min = -5000;
   integral = constrain(integral, integral_min, integral_max);
-  
-  d = p - lp;       
-  lp = p;           
 
-  return int(Kp * p + Ki * integral + Kd * d);
+  d = (p - lp) / dt;
+  lp = p;
+
+  float output = Kp * p + Ki * integral + Kd * d;
+
+  // Anti-windup por saturação da saída
+  float output_max = 255;
+  float output_min = -255;
+
+  if (output > output_max) {
+    output = output_max;
+    if (p > 0) integral -= p;
+  }
+  else if (output < output_min) {
+    output = output_min;
+    if (p < 0) integral -= p;
+  }
+
+  Serial.println(p);
+  
+  return int(output);
 }
+
+
 
 void calc_turn() {
   if (!deviceConnected && state != 4) { // Não calcula nem move se não estiver conectado, a menos que esteja no estado de parada intencional
@@ -354,11 +375,15 @@ void calc_turn() {
 /////////////////////////////////////////////////
   
   correction = pid_calc();
+
+  // Ajuste dinâmico da base_speed com base no erro
+  int base_dynamic = base_speed;
+  if (abs(p) > 800) base_dynamic = base_speed * 0.6;
+  if (abs(p) > 1500) base_dynamic = base_speed * 0.4;
   
-  // Se correction > 0, linha à direita, precisa virar à DIREITA: rspeed DIMINUI, lspeed AUMENTA
-  // Se correction < 0, linha à esquerda, precisa virar à ESQUERDA: rspeed AUMENTA, lspeed DIMINUI
-  rspeed = base_speed - correction; 
-  lspeed = base_speed + correction;
+  rspeed = base_dynamic - correction; 
+  lspeed = base_dynamic + correction;
+
   
   //BLOCO NOVO VOLKMAN-----------------------------------------------------------------------
   
